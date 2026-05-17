@@ -477,6 +477,7 @@ video#main-video {
     <div class="error-icon">☽</div>
     <p class="error-title">Não foi possível carregar</p>
     <p class="error-msg" id="error-msg-text"></p>
+    <button class="set-btn" style="margin-top:20px;padding:12px 28px;font-size:12px;letter-spacing:0.2em" onclick="retryFetch()">↺ &nbsp;Tentar novamente</button>
   </div>
 
   <!-- Empty -->
@@ -526,8 +527,8 @@ const GITHUB_BRANCH = 'main';
 const EPS_FOLDER    = 'eps';
 const REDIRECT_URL  = 'https://diegomillk.github.io/Supernatural/';
 
-// API do GitHub para listar arquivos da pasta eps/
-const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${EPS_FOLDER}?ref=${GITHUB_BRANCH}`;
+// Git Trees API — 1 requisição pra tudo, bem menos chance de rate limit
+const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/git/trees/${GITHUB_BRANCH}?recursive=1`;
 
 // ══════════════════════════════════════════════
 // STATE
@@ -548,35 +549,41 @@ async function fetchEpisodes() {
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       if (res.status === 404) throw new Error(
-        `Pasta <b>"${EPS_FOLDER}"</b> não encontrada em <b>${GITHUB_USER}/${GITHUB_REPO}</b>.<br><br>` +
-        `Verifique:<br>• A pasta existe?<br>• O repositório é público?<br>• Branch correta? (atual: <code>${GITHUB_BRANCH}</code>)`
+        `Repositório <b>${GITHUB_USER}/${GITHUB_REPO}</b> não encontrado.<br><br>` +
+        `Verifique se o repositório é público e a branch é <code>${GITHUB_BRANCH}</code>.`
       );
       if (res.status === 403) throw new Error(
-        `Limite de requisições da API do GitHub atingido.<br>Aguarde alguns minutos e recarregue.`
+        `Limite de requisições da API do GitHub atingido.<br>Aguarde ~1 hora e clique em <b>Tentar novamente</b>.`
       );
       throw new Error(`Erro ${res.status} da API do GitHub.<br><small>${body.slice(0,300)}</small>`);
     }
 
-    const files = await res.json();
+    const data = await res.json();
 
-    if (!Array.isArray(files)) throw new Error(
-      `Resposta inesperada da API do GitHub.<br><small>${JSON.stringify(files).slice(0,200)}</small>`
-    );
+    // Git Trees API retorna { tree: [...] }
+    const tree = data.tree || [];
 
-    // Filtra .mp4 com padrão sXXeXX (case insensitive)
+    // Filtra arquivos dentro da pasta eps/ com padrão sXXeXX.mp4
     const regex = /^(s(\d+)e(\d+))\.mp4$/i;
-    allEpisodes = files
-      .filter(f => f.type === 'file' && regex.test(f.name))
-      .map(f => {
-        const m = f.name.match(regex);
-        // Usa download_url da API — é o raw.githubusercontent.com, sem CORS
-        const rawUrl = f.download_url ||
-          `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${EPS_FOLDER}/${f.name}`;
+    allEpisodes = tree
+      .filter(item => {
+        if (item.type !== 'blob') return false;
+        // path pode ser "eps/S01E01.mp4"
+        const parts = item.path.split('/');
+        const folder = parts.length > 1 ? parts[parts.length - 2] : '';
+        const filename = parts[parts.length - 1];
+        return folder.toLowerCase() === EPS_FOLDER.toLowerCase() && regex.test(filename);
+      })
+      .map(item => {
+        const filename = item.path.split('/').pop();
+        const m = filename.match(regex);
+        // Monta URL raw diretamente — não precisa de download_url
+        const rawUrl = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${item.path}`;
         return {
           code:     m[1].toUpperCase(),
           season:   parseInt(m[2], 10),
           ep:       parseInt(m[3], 10),
-          filename: f.name,
+          filename: filename,
           url:      rawUrl,
         };
       })
@@ -687,6 +694,13 @@ function backToHome() {
 
 function goToSite() {
   window.location.href = REDIRECT_URL;
+}
+
+function retryFetch() {
+  hide('error-state');
+  hide('empty-state');
+  show('loading-state');
+  fetchEpisodes();
 }
 
 // ══════════════════════════════════════════════
