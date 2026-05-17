@@ -315,6 +315,11 @@ html, body {
   opacity: 1;
 }
 
+#player-screen.playing:not(:hover) .player-top-bar {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .back-btn {
   background: none;
   border: 1px solid rgba(201,168,76,0.4);
@@ -489,8 +494,6 @@ video#main-video {
   <!-- Episodes -->
   <div id="episodes-container"></div>
 
-  <!-- DEBUG -->
-  <div id="debug-out" style="display:none;background:#111;border:1px solid #c9a84c;color:#e8dcc8;font-family:monospace;font-size:12px;padding:16px;margin-top:20px;max-width:700px;width:100%;line-height:1.8;word-break:break-all"></div>
 
 </div>
 
@@ -512,9 +515,6 @@ video#main-video {
     <div class="end-buttons">
       <button class="end-btn end-btn-primary" onclick="goToSite()">
         ⟶ &nbsp; Ir para o site
-      </button>
-      <button class="end-btn end-btn-secondary" onclick="backToHome()">
-        ☰ &nbsp; Escolher outro ep
       </button>
     </div>
   </div>
@@ -592,17 +592,6 @@ async function fetchEpisodes() {
       })
       .sort((a, b) => a.season - b.season || a.ep - b.ep);
 
-    // DEBUG — mostra o que foi encontrado
-    const debugEl = document.getElementById('debug-out');
-    const allMp4 = tree.filter(i => i.path.toLowerCase().endsWith('.mp4'));
-    debugEl.innerHTML =
-      `<b>Total no tree:</b> ${tree.length}<br>` +
-      `<b>.mp4 encontrados:</b> ${allMp4.length}<br>` +
-      `<b>Paths mp4:</b><br>${allMp4.map(i => '• ' + i.path).join('<br>') || '(nenhum)'}<br><br>` +
-      `<b>Episódios parseados:</b> ${allEpisodes.length}<br>` +
-      `${allEpisodes.map(e => '• ' + e.code + ' → ' + e.url).join('<br>')}`;
-    debugEl.style.display = 'block';
-
     renderEpisodes();
   } catch(err) {
     showError(err.message || String(err));
@@ -672,18 +661,32 @@ function playEpisode(ep) {
   vid.src = videoUrl;
 
   document.getElementById('end-overlay').classList.remove('active');
-  document.getElementById('player-screen').classList.add('active');
+  const ps = document.getElementById('player-screen');
+  ps.classList.add('active');
 
   vid.play().catch(() => {});
 
   // Fullscreen
-  const ps = document.getElementById('player-screen');
   if (ps.requestFullscreen)            ps.requestFullscreen();
   else if (ps.webkitRequestFullscreen) ps.webkitRequestFullscreen();
   else if (ps.mozRequestFullScreen)    ps.mozRequestFullScreen();
 
+  // Auto-hide top bar: some após 2s, volta ao mover mouse
+  let hideTimer;
+  function showBar() {
+    ps.classList.add('show-bar');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => ps.classList.remove('show-bar'), 2000);
+  }
+  ps.onmousemove = showBar;
+  ps.ontouchstart = showBar;
+  // Esconde imediatamente após 2s do clique
+  showBar();
+
   // End event
   vid.onended = () => {
+    clearTimeout(hideTimer);
+    ps.classList.add('show-bar');
     document.getElementById('end-overlay').classList.add('active');
   };
 }
