@@ -518,25 +518,21 @@ video#main-video {
 
 <script>
 // ══════════════════════════════════════════════
-// CONFIG — ajuste para o SEU repositório
+// CONFIG
 // ══════════════════════════════════════════════
-const GITHUB_USER   = 'diegomillk';
-const GITHUB_REPO   = 'Supernatural';
-const GITHUB_BRANCH = 'main';          // troque se usar 'master'
-const EPS_FOLDER    = 'eps';           // pasta onde estão os .mp4
+const GITHUB_USER   = 'Diegomillk';
+const GITHUB_REPO   = 'Plays';
+const GITHUB_BRANCH = 'main';
+const EPS_FOLDER    = 'eps';
 const REDIRECT_URL  = 'https://diegomillk.github.io/Supernatural/';
 
-// Base URL para acessar os arquivos raw do GitHub Pages
-// (funciona quando o repo está publicado como GitHub Pages)
-const RAW_BASE = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/${EPS_FOLDER}/`;
-
-// API do GitHub para listar arquivos
+// API do GitHub para listar arquivos da pasta eps/
 const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${EPS_FOLDER}?ref=${GITHUB_BRANCH}`;
 
 // ══════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════
-let allEpisodes = [];   // { season, ep, code, filename }
+let allEpisodes = [];  // { season, ep, code, filename, url }
 
 // ══════════════════════════════════════════════
 // INIT
@@ -545,27 +541,43 @@ window.addEventListener('DOMContentLoaded', fetchEpisodes);
 
 async function fetchEpisodes() {
   try {
-    const res = await fetch(API_URL);
+    const res = await fetch(API_URL, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
 
     if (!res.ok) {
-      if (res.status === 404) throw new Error(`Pasta "${EPS_FOLDER}" não encontrada no repositório.<br>Verifique se ela existe e se o repo é público.`);
-      if (res.status === 403) throw new Error(`Limite da API do GitHub atingido. Tente novamente em alguns minutos.`);
-      throw new Error(`Erro ${res.status} ao acessar a API do GitHub.`);
+      const body = await res.text().catch(() => '');
+      if (res.status === 404) throw new Error(
+        `Pasta <b>"${EPS_FOLDER}"</b> não encontrada em <b>${GITHUB_USER}/${GITHUB_REPO}</b>.<br><br>` +
+        `Verifique:<br>• A pasta existe?<br>• O repositório é público?<br>• Branch correta? (atual: <code>${GITHUB_BRANCH}</code>)`
+      );
+      if (res.status === 403) throw new Error(
+        `Limite de requisições da API do GitHub atingido.<br>Aguarde alguns minutos e recarregue.`
+      );
+      throw new Error(`Erro ${res.status} da API do GitHub.<br><small>${body.slice(0,300)}</small>`);
     }
 
     const files = await res.json();
 
-    // Filtra apenas .mp4 com padrão sXXeXX
+    if (!Array.isArray(files)) throw new Error(
+      `Resposta inesperada da API do GitHub.<br><small>${JSON.stringify(files).slice(0,200)}</small>`
+    );
+
+    // Filtra .mp4 com padrão sXXeXX (case insensitive)
     const regex = /^(s(\d+)e(\d+))\.mp4$/i;
     allEpisodes = files
       .filter(f => f.type === 'file' && regex.test(f.name))
       .map(f => {
         const m = f.name.match(regex);
+        // Usa download_url da API — é o raw.githubusercontent.com, sem CORS
+        const rawUrl = f.download_url ||
+          `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${EPS_FOLDER}/${f.name}`;
         return {
           code:     m[1].toUpperCase(),
           season:   parseInt(m[2], 10),
           ep:       parseInt(m[3], 10),
           filename: f.name,
+          url:      rawUrl,
         };
       })
       .sort((a, b) => a.season - b.season || a.ep - b.ep);
@@ -631,7 +643,7 @@ function renderEpisodes() {
 // PLAYER
 // ══════════════════════════════════════════════
 function playEpisode(ep) {
-  const videoUrl = RAW_BASE + ep.filename;
+  const videoUrl = ep.url;
 
   document.getElementById('player-label').textContent = ep.code;
   const vid = document.getElementById('main-video');
