@@ -609,55 +609,56 @@ async function fetchEpisodes() {
   }
 }
 
-// ══════════════════════════════════════════════
-// RENDER
-// ══════════════════════════════════════════════
 function renderEpisodes() {
-  hide('loading-state');
+  try {
+    hide('loading-state');
 
-  if (allEpisodes.length === 0) {
-    show('empty-state');
-    return;
-  }
+    if (allEpisodes.length === 0) {
+      show('empty-state');
+      return;
+    }
 
-  // Group by season
-  const seasons = {};
-  allEpisodes.forEach(ep => {
-    if (!seasons[ep.season]) seasons[ep.season] = [];
-    seasons[ep.season].push(ep);
-  });
-
-  const container = document.getElementById('episodes-container');
-  container.innerHTML = '';
-
-  Object.keys(seasons).sort((a,b) => a-b).forEach(sNum => {
-    const block = document.createElement('div');
-    block.className = 'season-block';
-
-    block.innerHTML = `
-      <div class="season-title">
-        <span class="season-title-num">Temporada ${sNum}</span>
-      </div>
-      <div class="episodes-grid" id="season-grid-${sNum}"></div>
-    `;
-    container.appendChild(block);
-
-    const grid = document.getElementById(`season-grid-${sNum}`);
-    seasons[sNum].forEach(ep => {
-      const card = document.createElement('div');
-      card.className = 'ep-card';
-      card.innerHTML = `
-        <div class="ep-label">episódio</div>
-        <div class="ep-code">${ep.code}</div>
-        <div class="ep-num">Ep ${ep.ep}</div>
-        <span class="ep-play-icon">▶</span>
-      `;
-      card.addEventListener('click', () => playEpisode(ep));
-      grid.appendChild(card);
+    // Group by season
+    const seasons = {};
+    allEpisodes.forEach(ep => {
+      if (!seasons[ep.season]) seasons[ep.season] = [];
+      seasons[ep.season].push(ep);
     });
-  });
 
-  show('episodes-container');
+    const container = document.getElementById('episodes-container');
+    container.innerHTML = '';
+
+    Object.keys(seasons).sort((a,b) => a-b).forEach(sNum => {
+      const block = document.createElement('div');
+      block.className = 'season-block';
+
+      block.innerHTML = `
+        <div class="season-title">
+          <span class="season-title-num">Temporada ${sNum}</span>
+        </div>
+        <div class="episodes-grid" id="season-grid-${sNum}"></div>
+      `;
+      container.appendChild(block);
+
+      const grid = document.getElementById(`season-grid-${sNum}`);
+      seasons[sNum].forEach(ep => {
+        const card = document.createElement('div');
+        card.className = 'ep-card';
+        card.innerHTML = `
+          <div class="ep-label">episódio</div>
+          <div class="ep-code">${ep.code}</div>
+          <div class="ep-num">Ep ${ep.ep}</div>
+          <span class="ep-play-icon">▶</span>
+        `;
+        card.addEventListener('click', () => playEpisode(ep));
+        grid.appendChild(card);
+      });
+    });
+
+    container.style.display = 'block';
+  } catch(err) {
+    showError('Erro ao renderizar episódios: ' + err.message);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -720,8 +721,15 @@ function retryFetch() {
 // ══════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════
-function show(id) { document.getElementById(id).style.display = ''; }
-function hide(id) { document.getElementById(id).style.display = 'none'; }
+function show(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = id === 'player-screen' ? 'flex' : 'block';
+}
+function hide(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
 
 function showError(msg) {
   hide('loading-state');
