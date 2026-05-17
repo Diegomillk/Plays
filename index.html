@@ -489,6 +489,9 @@ video#main-video {
   <!-- Episodes -->
   <div id="episodes-container"></div>
 
+  <!-- DEBUG -->
+  <div id="debug-out" style="display:none;background:#111;border:1px solid #c9a84c;color:#e8dcc8;font-family:monospace;font-size:12px;padding:16px;margin-top:20px;max-width:700px;width:100%;line-height:1.8;word-break:break-all"></div>
+
 </div>
 
 <!-- ═══════════════ PLAYER SCREEN ═══════════════ -->
@@ -588,6 +591,17 @@ async function fetchEpisodes() {
         };
       })
       .sort((a, b) => a.season - b.season || a.ep - b.ep);
+
+    // DEBUG — mostra o que foi encontrado
+    const debugEl = document.getElementById('debug-out');
+    const allMp4 = tree.filter(i => i.path.toLowerCase().endsWith('.mp4'));
+    debugEl.innerHTML =
+      `<b>Total no tree:</b> ${tree.length}<br>` +
+      `<b>.mp4 encontrados:</b> ${allMp4.length}<br>` +
+      `<b>Paths mp4:</b><br>${allMp4.map(i => '• ' + i.path).join('<br>') || '(nenhum)'}<br><br>` +
+      `<b>Episódios parseados:</b> ${allEpisodes.length}<br>` +
+      `${allEpisodes.map(e => '• ' + e.code + ' → ' + e.url).join('<br>')}`;
+    debugEl.style.display = 'block';
 
     renderEpisodes();
   } catch(err) {
